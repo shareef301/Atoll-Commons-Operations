@@ -70,7 +70,12 @@ export function applyCommand(d:WorkspaceData,c:any,a:Actor):{message:string;id?:
   }
   if(kind==='activities'){hasProject(d,a,required(p.projectId,'Project'));Object.assign(r,{date:date(p.date,'Activity date'),projectId:p.projectId,location:text(p.location,250),participants:positive(p.participants,'Participants'),description:required(p.description,'Purpose'),output:required(p.output,'Output'),status:'Completed'})}
   if(kind==='meetings')Object.assign(r,{date:date(p.date,'Meeting date'),type:required(p.type,'Meeting type',100),time:text(p.time,20)||'16:00',location:required(p.location,'Location',250),owner:a.email,attendees:required(p.attendees,'Attendees'),quorum:positive(p.quorum,'Quorum'),agenda:required(p.agenda,'Agenda'),minutes:'',resolution:'',status:'Scheduled'});
-  if(kind==='members')Object.assign(r,{joined:date(p.joined,'Join date'),email:text(p.email,250),type:text(p.type,100)||'Member',status:'Active'});
+  if(kind==='members'){
+   const joined=p.joined?date(p.joined,'Join date'):'';const applicationDate=p.applicationDate?date(p.applicationDate,'Application date'):'';
+   requireValue((!joined||joined<=now().slice(0,10))&&(!applicationDate||applicationDate<=now().slice(0,10)),'A confirmed member date cannot be in the future.');
+   if(p.fileId)file(d,p.fileId);
+   Object.assign(r,{joined,applicationDate,email:text(p.email,250),phone:text(p.phone,100),type:text(p.type,100)||'Member',status:'Active',fileIds:p.fileId?[p.fileId]:[]});
+  }
   if(kind==='committee'){
    const effective=date(p.date,'Effective date');Object.assign(r,{person:required(p.person,'Appointee',250),date:effective,end:date(p.end,'Term end'),eventType:required(p.eventType,'Change type'),status:'Active'});requireValue(r.end>=effective,'Term end must follow appointment.');const rule=d.rules.find(x=>x.id==='r3');const days=p.eventType==='First election'?(rule?.days??30):(rule?.changeDays??(d.mode==='sample'?15:null));d.obligations.push({id:uid(),title:'Committee notification · '+r.title,status:'Action needed',authority:'Registrar',owner:'Compliance secretary',due:days===null?'':addDays(effective,days),...(days===null?{dueLabel:'Confirm notification deadline'}:{}),ruleId:'r3',committeeId:r.id,description:days===null?'Confirm the notification deadline for this change against the applicable official source.':days+' days from the recorded '+p.eventType.toLowerCase()+'. Review the source rule before live filing.',checklist:[{label:'Confirm appointment and contact details',done:false},{label:'Attach resolution',done:false},{label:'Record submission and proof',done:false}]});
   }

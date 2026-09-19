@@ -54,3 +54,5 @@ test('later live appointments do not invent a notification interval absent from 
 });
 
 test('a source rule expressed in calendar months preserves the registration day',()=>{assert.equal(addMonths('2026-08-24',3),'2026-11-24');assert.equal(addMonths('2026-01-31',1),'2026-02-28');const d=seedData();d.rules[0].months=3;applyCommand(d,{type:'organization',values:d.organization},owner);assert.equal(d.obligations[0].due,'2026-11-24')});
+
+test('membership forms can be added without inventing an admission date',()=>{const d=seedData();d.files.push(proof);const result=applyCommand(d,{type:'create',collection:'members',values:{title:'Documented member',applicationDate:'2026-09-01',fileId:'proof'}},owner);const m=d.members.find(m=>m.id===result.id)!;assert.equal(m.joined,'');assert.equal(m.applicationDate,'2026-09-01');assert.deepEqual(m.fileIds,['proof'])});
