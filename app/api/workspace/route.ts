@@ -1,9 +1,10 @@
+import {readCommand} from '@/server/http';
 import {session,save,visible,checkOrigin,responseError,AppError,db,fullAccess,fileAccess} from '@/db/store';
 import {applyCommand,type Actor} from '@/lib/domain';
 import {uid,now,seedData,addDays,type WorkspaceData} from '@/lib/model';
 export const dynamic='force-dynamic';
 export async function GET(){try{const s=await session();return Response.json(visible(s),{headers:{'Cache-Control':'no-store'}})}catch(e){return responseError(e)}}
-export async function POST(request:Request){try{checkOrigin(request);const s=await session();const c=await request.json() as any;
+export async function POST(request:Request){try{checkOrigin(request);const s=await session();const c=await readCommand(request) as any;
  if(JSON.stringify(c).length>100000)throw new AppError('This record is too large. Upload long documents as files.');
  if(typeof c.operationId!=='string'||c.operationId.length>100)throw new AppError('Missing operation reference.');
  if((s.data as any).operations?.includes(c.operationId))return Response.json({...visible(s),message:'This change is already saved.'});
@@ -30,7 +31,7 @@ export async function POST(request:Request){try{checkOrigin(request);const s=awa
   const audit={id:uid(),at:now(),actor:s.user.email,action:'Access assignment recorded',detail:email+' · '+p.role+(governance?' · governance authority: '+ref:'')};s.data.audit.unshift(audit);
   const result=await db().batch([db().prepare('UPDATE workspaces SET data = ?, revision = revision + 1 WHERE id = ? AND revision = ?').bind(JSON.stringify(s.data),s.workspaceId,s.revision),db().prepare('INSERT INTO memberships (id,workspace_id,email,name,role,projects,governance,authority_ref) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM workspaces WHERE id = ? AND revision = ? AND json_extract(data,\'$.audit[0].id\') = ?) ON CONFLICT(email) DO UPDATE SET name = excluded.name, role = excluded.role, projects = excluded.projects, governance = excluded.governance, authority_ref = excluded.authority_ref').bind(uid(),s.workspaceId,email,String(p.name||email),p.role,JSON.stringify(projects),governance,ref,s.workspaceId,s.revision+1,audit.id)]);
   if(!result[0].meta.changes)throw new AppError('Another change was saved first. Refresh and try again.',409);
-  return Response.json({...visible(await session()),message:'Access assignment recorded. Site sharing must also permit this person; no invitation was sent.'});
+  return Response.json({...visible(await session()),message:'Access assigned. This person can now sign in with Google; no invitation was sent.'});
  }
  const evidenceId=c.fileId||c.values?.fileId;if(evidenceId){const evidence=s.data.files.find(f=>f.id===evidenceId);if(!evidence||!fileAccess(s,evidence))throw new AppError('Evidence is outside your authorized scope.',403);}
  const actor:Actor={name:s.user.displayName,email:s.user.email,role:s.access.role,governance:!!s.access.governance,projects:JSON.parse(s.access.projects)};

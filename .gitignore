@@ -28,6 +28,12 @@ yarn-error.log*
 
 # local environment
 .env*
+!.env.example
+/.data/
+/backups/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # deployment and generated files
 .vercel
