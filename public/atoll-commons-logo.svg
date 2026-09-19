@@ -1,0 +1,10 @@
+<svg width="312" height="72" viewBox="0 0 312 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Atoll Commons</title>
+  <g transform="translate(4 4)">
+    <path d="M 12.676 41.422 A 21.5 21.5 0 0 1 45.237 15.058" stroke="#0B1F33" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 52.448 25.356 A 21.5 21.5 0 0 1 49.824 44.023" stroke="#0B1F33" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 42.094 50.983 A 21.5 21.5 0 0 1 19.977 49.824" stroke="#0B1F33" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="52.35" cy="20.25" r="4.1" fill="#36B7A5"/>
+  </g>
+  <text x="82" y="44" fill="#0B1F33" font-family="Inter, Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="-1">Atoll Commons</text>
+</svg>

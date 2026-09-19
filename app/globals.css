@@ -30,3 +30,7 @@
 .signin-email label{font-size:14px;color:var(--muted-foreground)}
 .signin-email input{width:100%;padding:12px 14px;border:1px solid #314957;border-radius:8px;background:#102432;color:#edf4f7;font:inherit}
 .signin-email .button{width:100%;justify-content:center}
+
+.document-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}.document-card .file-link{overflow-wrap:anywhere;margin:18px 0}.document-card .card-topline{gap:12px}.record-evidence .file-link{margin:12px 0;overflow-wrap:anywhere}.record-evidence>.button{margin-top:10px}.record-facts dd{overflow-wrap:anywhere}
+
+.organization-logo{width:100%;max-width:210px;height:auto;background:#f2f7f5;border-radius:6px;padding:9px}.brand:has(.organization-logo){padding-left:20px;padding-right:20px}

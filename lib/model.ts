@@ -1,7 +1,7 @@
 export type Entry = {id:string;title:string;status:string;[key:string]:any};
 export type History = {id:string;at:string;actor:string;action:string;detail:string;recordId?:string};
 export type Milestone = Entry & {projectId:string;number:string;owner:string;reviewer:string;due:string;reviewDue:string;criteria:string[];result:string;submittedAt?:string;acceptedAt?:string;evidence?:string;fileId?:string;version:number;blocked?:boolean;blocker?:string;unblockOwner?:string;unblockDue?:string;history:History[]};
-export type WorkspaceData = {organization:{name:string;dhivehi:string;registration:string;registeredAt:string;year:number;mira:string;address:string;timezone:string};projects:Entry[];milestones:Milestone[];obligations:Entry[];meetings:Entry[];members:Entry[];committee:Entry[];transactions:Entry[];donations:Entry[];assets:Entry[];activities:Entry[];reports:Entry[];submissions:Entry[];files:Entry[];rules:Entry[];audit:History[];cases:Entry[];mode:'sample'|'live'};
+export type WorkspaceData = {organization:{name:string;dhivehi:string;registration:string;registeredAt:string;year:number;mira:string;address:string;timezone:string;fileIds?:string[];notes?:string;email?:string;website?:string};projects:Entry[];milestones:Milestone[];obligations:Entry[];meetings:Entry[];members:Entry[];committee:Entry[];transactions:Entry[];donations:Entry[];assets:Entry[];activities:Entry[];reports:Entry[];submissions:Entry[];files:Entry[];rules:Entry[];audit:History[];cases:Entry[];mode:'sample'|'live'};
 export type Collection = Exclude<keyof WorkspaceData,'organization'|'mode'|'audit'>;
 export const now=()=>new Date().toISOString();
 export const uid=()=>crypto.randomUUID();
@@ -9,6 +9,7 @@ export function formatDate(date?:string,long=false){if(!date)return 'Not set';re
 export function formatTime(date?:string){return date?new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Indian/Maldives'}).format(new Date(date)):'Not recorded'}
 export const money=(n:number)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'MVR',maximumFractionDigits:0}).format(n||0);
 export function addDays(date:string,days:number){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)}
+export function addMonths(date:string,months:number){const d=new Date(date+'T00:00:00Z');const day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+months);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10)}
 const h=(at:string,actor:string,action:string,detail:string):History=>({id:at+action,at,actor,action,detail});
 export function seedData():WorkspaceData{
  const milestones:Milestone[]=[
