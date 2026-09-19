@@ -42,6 +42,8 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/supabase/.temp/
+/supabase/.branches/
 
 # generated TypeScript metadata
 *.tsbuildinfo

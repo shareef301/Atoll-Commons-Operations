@@ -3,8 +3,22 @@ import { googleConfig } from '@/server/google.mjs';
 import { database } from '@/server/storage.mjs';
 import { runtimeConfig } from '@/server/config.mjs';
 import { authCookie, cookieValue, tokenHash, registerIdentity, createSession, revokeSession } from '@/server/sessions.mjs';
+import {authClient,supabaseUser} from '@/server/supabase-auth';
 export const dynamic = 'force-dynamic';
 export async function GET(request:Request) {
+  if(process.env.AUTH_MODE==='supabase'){
+    const client=await authClient();
+    const code=new URL(request.url).searchParams.get('code');
+    let path='/signin?error=signin';
+    if(code){
+      const {error}=await client.auth.exchangeCodeForSession(code);
+      if(!error){
+        if(await supabaseUser())path='/';
+        else {await client.auth.signOut({scope:'local'});path='/signin?error=access';}
+      }
+    }
+    return new Response(null,{status:303,headers:{Location:runtimeConfig().origin+path,'Cache-Control':'no-store'}});
+  }
   const headers = new Headers({'Cache-Control':'no-store'});
   headers.append('Set-Cookie',authCookie('','flow',0));
   try {

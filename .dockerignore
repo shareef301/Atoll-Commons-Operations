@@ -18,3 +18,5 @@ work
 coverage
 npm-debug.log*
 backups
+supabase/.temp
+supabase/.branches

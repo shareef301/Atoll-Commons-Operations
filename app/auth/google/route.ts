@@ -3,8 +3,16 @@ import { database } from '@/server/storage.mjs';
 import { runtimeConfig } from '@/server/config.mjs';
 import { authCookie, newToken, tokenHash } from '@/server/sessions.mjs';
 import { googleConfig } from '@/server/google.mjs';
+import {authClient} from '@/server/supabase-auth';
 export const dynamic = 'force-dynamic';
 export async function GET() {
+  if(process.env.AUTH_MODE==='supabase'){
+    if(process.env.SUPABASE_GOOGLE_ENABLED!=='true')return new Response('Google sign-in is not enabled.',{status:404});
+    const client=await authClient();
+    const {data,error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:runtimeConfig().origin+'/auth/callback',skipBrowserRedirect:true}});
+    if(error||!data.url)return new Response('Sign-in could not be started.',{status:503});
+    return new Response(null,{status:302,headers:{Location:data.url,'Cache-Control':'no-store'}});
+  }
   try {
     const config = await googleConfig(), token = newToken();
     const state = oidc.randomState(), nonce = oidc.randomNonce(), verifier = oidc.randomPKCECodeVerifier();

@@ -26,3 +26,7 @@
 
 .profile>form{margin-left:auto}.profile>form .icon-button{flex-shrink:0}
 .signin-page{min-height:100dvh;display:grid;place-items:center;padding:24px;background:#0b1c29}.signin-card{width:100%;max-width:440px;background:#132c3d;border:1px solid #304b5b;border-radius:12px;padding:40px}.signin-card .brand-symbol{margin-bottom:30px}.signin-card .eyebrow{margin-bottom:8px}.signin-card h1{margin:0 0 12px}.signin-card .subtitle{font-size:16px;margin-bottom:30px}.signin-card .button{width:100%;justify-content:center;text-decoration:none}.signin-card .metadata{margin-top:12px}.signin-note{display:flex;gap:9px;align-items:center;font-size:14px;color:#9fb6c3;margin-top:28px}.signin-card .form-error{margin-bottom:20px}@media(max-width:480px){.signin-card{padding:28px 24px}}
+.signin-email{display:grid;gap:12px;text-align:left;width:100%;margin:20px 0}
+.signin-email label{font-size:14px;color:var(--muted-foreground)}
+.signin-email input{width:100%;padding:12px 14px;border:1px solid #314957;border-radius:8px;background:#102432;color:#edf4f7;font:inherit}
+.signin-email .button{width:100%;justify-content:center}

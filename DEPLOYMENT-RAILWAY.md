@@ -1,92 +1,94 @@
-# Atoll Commons Operations on Railway
+# Atoll Commons Operations: Railway + Supabase
 
-Target address: **https://ops.atollcommons.org**.
+App address: **https://ops.atollcommons.org**.
+Supabase project: **Atoll Commons Operations** (`ptltikcttzlpcesczcve`, Tokyo).
+Repository: https://github.com/shareef301/Atoll-Commons-Operations.
 
-The application is packaged as a standalone Node.js service. Railway builds the root `Dockerfile`; `railway.json` configures the startup health check and one replica. Cloudflare Workers, D1, R2, and the Sites sign-in dispatcher are no longer required at runtime. The retained `.openai/hosting.json` and `wrangler.local.json` describe the original pilot only.
+Railway runs the Node application. Supabase provides Postgres, private evidence storage, and authentication. The application remains an operations pilot with the limits described in `README.md`.
 
-## Before the first deployment
+## Configured in Supabase
 
-1. Create a Railway service from this repository (or upload it with the Railway CLI). Keep its root directory at the directory containing `Dockerfile` and `railway.json`.
-2. **Attach a persistent volume at `/data` before starting the service.** Both `atoll.sqlite` and the `files/` directory live there. Do not use the container's temporary filesystem for organizational records. Leave the service at one replica; do not enable serverless sleeping.
-3. Create a Google OAuth **Web application** client. Use only the `openid`, `email`, and `profile` sign-in scopes. Register this exact authorized redirect URI:
+- `ops_workspaces`, `ops_memberships`, and `ops_identities` tables, with RLS and no client/public table access.
+- Server-only transaction functions for initialization, revisions, workspace switching, access assignments, identity binding, session checks, and backup/restore.
+- Private `operations-evidence` bucket. The app accepts individual uploads up to 10 MB and generated review packages up to 30 MB.
+- Site URL: `https://ops.atollcommons.org`.
+- Exact callbacks: `https://ops.atollcommons.org/auth/callback` and `http://localhost:3000/auth/callback`.
+- Migration SQL is versioned in `supabase/migrations/`; apply future migrations deliberately before the corresponding application release. App startup checks connectivity and does not silently migrate a production database.
 
-   `https://ops.atollcommons.org/auth/callback`
+Application memberships and scope checks are enforced by the server. Supabase dashboard collaborators are separate from app users. Adding an app membership does not send an invitation email or grant access to the Supabase dashboard.
 
-   If the Google consent screen remains in Testing, add the intended accounts as test users. Choose an Internal audience only if all intended users belong to your Google Workspace organization; otherwise configure the appropriate External audience. The app's own membership list independently restricts access. See [Google's sign-in setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) and [OIDC redirect requirements](https://developers.google.com/identity/openid-connect/reference).
+## Railway variables
 
-4. Add these **runtime service variables** in Railway:
+Create a Railway service from the repository, using the root Dockerfile and `main`. Set these runtime variables:
 
-   | Variable | Value |
-   | --- | --- |
-   | `APP_URL` | `https://ops.atollcommons.org` |
-   | `DATA_DIR` | `/data` |
-   | `OWNER_EMAIL` | Your exact Google account email; the initial administrator |
-   | `GOOGLE_CLIENT_ID` | The OAuth Web client ID |
-   | `GOOGLE_CLIENT_SECRET` | Its client secret |
+| Variable | Value |
+| --- | --- |
+| `APP_URL` | `https://ops.atollcommons.org` |
+| `STORAGE_BACKEND` | `supabase` |
+| `AUTH_MODE` | `supabase` |
+| `SUPABASE_URL` | `https://ptltikcttzlpcesczcve.supabase.co` |
+| `SUPABASE_PUBLISHABLE_KEY` | Project's publishable key |
+| `SUPABASE_SECRET_KEY` | Project's server secret key |
+| `OWNER_EMAIL` | Exact email of the initial administrator |
 
-   The image sets `NODE_ENV=production` and `HOST=0.0.0.0`. Railway supplies `PORT` and the volume mount variable. Do not set `AUTH_MODE=development` in Railway. Do not expose secrets through `VITE_*`, `NEXT_PUBLIC_*`, Git, Docker build arguments, or chat messages. The app uses random, server-stored session tokens and does not require a shared password or a session-signing secret.
+Keep the secret key in Railway runtime variables. Never put it in `NEXT_PUBLIC_*`, `VITE_*`, build arguments, Git, screenshots, or chat. A legacy `service_role` key is supported for compatibility; prefer the current `sb_secret_` key type for deployment.
 
-5. Add **`ops.atollcommons.org`** under the service's custom domains. At the DNS provider for `atollcommons.org`, create the `ops` **CNAME** using the exact target Railway displays. Add any ownership-verification record Railway requests. Do not guess the CNAME target or change the apex domain's existing website/mail records. Wait for Railway's domain verification and HTTPS certificate to become active. [Railway networking documentation](https://docs.railway.com/networking/public-networking).
-6. Deploy. The startup command applies versioned migrations, checks storage, then starts the app on Railway's port. `/api/health` must return HTTP 200 before Railway routes traffic. It intentionally returns no organizational data. Missing storage, required settings, or migration errors prevent startup. [Railway health checks](https://docs.railway.com/deployments/healthchecks).
-7. Sign in at the target address using `OWNER_EMAIL`. A new installation starts with clearly marked sample records. Assign colleagues in **Organization & settings → Users & roles**, using their exact Google account emails. Assigning a role does not send email. Governance authority remains a separate recorded appointment.
-8. Enable scheduled volume backups in Railway's **Backups** panel. Keep an independent verified application backup before major upgrades. Railway supports scheduled volume backups, including SQLite data. [Railway backups](https://docs.railway.com/volumes/backups).
+The Docker image sets `NODE_ENV=production` and `HOST=0.0.0.0`; Railway provides `PORT`. No Railway volume or `DATA_DIR` is needed in Supabase mode. Keep the existing one-replica setting initially. `/api/health` checks both the database and the private evidence bucket.
 
-No Railway project, Google OAuth client, DNS record, or hosted deployment has been created by these source changes. Google sign-in must still be tested with the real configured client.
+## Sign-in and first administrator
 
-## Existing pilot records
+Set `OWNER_EMAIL` before starting the app. The first successful sign-in for this address creates a clearly marked sample workspace. Use **Organization & settings → Workspace records → Open organization records** for real records. Configure the organization's actual registration details before relying on generated deadlines.
 
-The original local data under `.wrangler/state` has not been changed or shipped in the container. Decide whether to start with fresh sample data or migrate that pilot before entering real records in Railway.
+The default app login sends a Supabase email sign-in link. It uses PKCE, so open the email link in the same browser that requested it. Supabase's built-in SMTP is limited to project team members and a small rate limit. Configure **Authentication → Emails → SMTP Settings** with your mail provider before onboarding other app users. SMTP credentials and a verified sender must come from your email service; they are not generated by the application. See [Supabase SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp).
 
-The importer reads the original database without modifying it, copies every workspace and membership, and changes the one original system-owner login email to the new `OWNER_EMAIL`. Original audit attribution and workspace IDs remain intact. It refuses to overwrite a destination or silently omit evidence.
+For Google sign-in, configure Google in Supabase **Authentication → Sign In / Providers**, register `https://ptltikcttzlpcesczcve.supabase.co/auth/v1/callback` with the Google OAuth web client, and set `SUPABASE_GOOGLE_ENABLED=true` in Railway. The app's callback is already allowlisted. The old direct-Google `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` variables are not used in Supabase mode.
+
+No real administrator account, sign-in email, SMTP service, or Google OAuth client is created automatically. The initial administrator email and delivery credentials must be supplied by the organization.
+
+## Domain and deployment
+
+Add `ops.atollcommons.org` to Railway's service domains. Copy the exact CNAME target shown by Railway to the `ops` record at your DNS provider. Preserve the apex website and mail records. Add an ownership verification record only if Railway requests it.
+
+Deploy, wait for `/api/health` to pass, and verify sign-in and a private evidence download over HTTPS. Updating Supabase's Site URL does not deploy the Railway application or change DNS.
+
+## Backups and recovery
+
+Keep an independent application backup before upgrades. Database backups alone do not include Storage object bytes. The application backup captures a consistent snapshot of all app records, each referenced evidence object across saved workspaces, and a checksum manifest. It excludes Supabase Auth credentials and sessions.
+
+With the Supabase runtime variables loaded:
 
 ```sh
-node scripts/import-sites.mjs \
-  --source /absolute/path/to/original.sqlite \
-  --output /absolute/path/to/new-atoll-data \
-  --owner-email your-google-account@example.org
+npm run backup -- /private/path/to/new-backup-directory
 ```
 
-Use the actual original D1 SQLite file under `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/`, not `metadata.sqlite`. If the pilot contains evidence, first export each object to a directory with each filename equal to its file record ID, then pass `--files /absolute/path/to/exported-evidence`. The importer verifies sizes and SHA-256 checksums. It will stop if any file is missing. For a hosted original, export its D1 database and evidence privately first; the importer takes an SQLite database file, not a SQL dump.
+Keep this directory outside the running service in private storage. A Railway container's local filesystem is temporary. No paid Supabase upgrade or backup schedule has been enabled automatically.
 
-Create an application backup from the migrated directory and restore it to an **empty** Railway volume while the app is stopped. Keep the original pilot as the rollback copy. Upload these private records only to the intended Railway service.
-
-## Backups and restore
-
-An application backup captures a consistent SQLite snapshot, every referenced evidence file across both sample and organization workspaces, and a SHA-256 manifest. Active sign-in sessions and pending OAuth flows are excluded, so restoring requires fresh sign-in. The backup includes private organizational data; store it privately outside the running service as well as any same-volume copy.
-
-Run in the service environment, choosing a new output directory:
+To restore, stop the app and use **empty application tables in the same Supabase project**:
 
 ```sh
-DATA_DIR=/data node scripts/backup.mjs /data/backups/2026-09-13
+npm run restore -- /private/path/to/backup-directory
 ```
 
-Download that backup to independent private storage. A backup retained only on the same volume does not protect against loss of that volume. To restore, stop the app and use an empty replacement volume/directory:
+Restore verifies the project identity, manifest paths, checksums, and every evidence reference before writing. It refuses to overwrite populated application tables. Evidence is restored before the atomic record transaction; matching objects allow an interrupted restore to resume. Supabase Auth users are managed separately and must retain their original IDs because account bindings are pinned. After recovery, verify sign-in, record counts, and an evidence download before reopening access.
+
+Original local pilot records remain in `.data/` and `.wrangler/`, outside Git. They have not been imported into the cloud. The earlier SQLite deployment and migration procedure is retained in [DEPLOYMENT-SQLITE.md](DEPLOYMENT-SQLITE.md).
+
+## Local development and checks
+
+The existing `.env.local` supports the offline SQLite preview. An ignored `.env.supabase.local` contains this project's connection for Supabase testing; fill `OWNER_EMAIL` before using it for your own login. To switch the local preview, preserve your current environment file and copy the Supabase settings into `.env.local`. Keep `APP_URL=http://localhost:3000` locally.
 
 ```sh
-DATA_DIR=/empty/replacement-data node scripts/restore.mjs /path/to/backup
-```
-
-Restore verifies checksums, database integrity, and the presence of all referenced evidence before copying. It refuses to overwrite an existing database or evidence directory. Point `DATA_DIR` at the restored volume and start the app. Confirm sign-in, record counts, and a sample evidence download before retiring the rollback copy.
-
-## Updates and operating limits
-
-- Run one application instance against this SQLite volume. For multiple replicas or high write throughput, migrate the database to PostgreSQL and evidence to object storage first.
-- A volume-backed service has a brief interruption during replacement deployments. Railway prevents two deployments mounting the same volume simultaneously. Health checks are deployment readiness checks, not continuous uptime monitoring. [Railway's volume health-check behavior](https://docs.railway.com/deployments/healthchecks).
-- Take a backup before applying new migrations. Applied migration checksums are checked at startup; do not edit an already-applied migration. A code rollback after a schema change may also require restoring its matching backup.
-- The app uses Google account security; its own MFA enrollment/recovery flow is not implemented. Require suitable account protection for organizational users.
-- Initial-owner identity recovery or reassignment should be handled as an explicit administrative operation, with a backup and audit record. Changing `OWNER_EMAIL` does not transfer an existing workspace membership automatically.
-- Automatic reminders/transfers, complete continuity automation, and official filing templates remain outside this pilot's implemented scope. See `README.md` before treating the app as a finished compliance system.
-
-## Local checks
-
-```sh
-npm ci
 npm run check
 npm test
 npm run build
 npm run test:railway
 ```
 
-`test:railway` runs the built artifact in an isolated temporary filesystem with disposable records. It checks API authorization, header-spoof rejection, production-only sign-in boundaries, origin and request-size protection, milestone review, file access, role scope, restart persistence, report export, filing proof, logout, and backup/restore. It does not contact Google or claim that real OAuth credentials have been tested.
+Opt-in integration tests create temporary, clearly named test users and sample records in the explicitly selected Supabase project, then remove only their own fixtures. They test actual Supabase Auth sessions without sending email:
 
-For the local interactive preview, create `.env.local` using the development example in `.env.example`, then run `npm run dev`. Local preview sign-in is only available outside production with `AUTH_MODE=development`.
+```sh
+SUPABASE_TEST_PROJECT_REF=ptltikcttzlpcesczcve \
+  node --env-file=.env.supabase.local tests/supabase.integration.mjs
+```
+
+Real email delivery and the organization's chosen sign-in provider still need an actual user sign-in test.

@@ -4,6 +4,7 @@ import { readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { runtimeConfig } from './config.mjs';
+import { SupabaseEvidenceStore, supabaseReady } from './supabase-admin.mjs';
 
 // The small SQL interface preserves the existing bound queries and atomic batches.
 // No database or uploads are created during the build; initialization is lazy.
@@ -82,14 +83,19 @@ export class EvidenceStore {
 let records;
 /** @type {EvidenceStore | undefined} */
 let evidence;
+let cloudEvidence;
 /** @returns {RecordStore} */
 export function database() { return records ??= new RecordStore(join(runtimeConfig().dataDir, 'atoll.sqlite')); }
 /** @returns {EvidenceStore} */
-export function files() { return evidence ??= new EvidenceStore(join(runtimeConfig().dataDir, 'files')); }
+export function files() {
+  if(process.env.STORAGE_BACKEND==='supabase')return cloudEvidence??=new SupabaseEvidenceStore();
+  return evidence ??= new EvidenceStore(join(runtimeConfig().dataDir, 'files'));
+}
 export async function storageReady() {
+  if(process.env.STORAGE_BACKEND==='supabase')return supabaseReady();
   const config = runtimeConfig();
   database().connection.prepare('SELECT 1').get();
-  const store = files();
+  const store = evidence ??= new EvidenceStore(join(config.dataDir,'files'));
   const probe = join(store.directory, '.health-' + randomUUID());
   try { await writeFile(probe, '', { flag: 'wx', mode: 0o600 }); } finally { await unlink(probe).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
   return existsSync(join(config.dataDir, 'atoll.sqlite'));
