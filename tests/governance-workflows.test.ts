@@ -38,7 +38,9 @@ test('private dues cannot leak through legacy compliance permissions; staff dele
  const d=fixture();d.files.push({id:'private',title:'Private dues.pdf',status:'Retained',scope:'dues'});d.duesAccounts.push({id:'a',title:'Private balance',status:'Active'});
  const a={...owner,role:'Compliance secretary'};assert.equal(projectWorkspace(session(d,a)).data.duesAccounts.length,0);assert.equal(projectWorkspace(session(d,a)).data.files.some(f=>f.id==='private'),false);
  const staff={...owner,role:'Authorized staff'};d.accessLinks.push({id:'staff',title:'Scoped staff',status:'Active',email:staff.email,role:staff.role,dues:true,expires:'2099-01-01'});
- assert.equal(governancePermissions(d,staff).dues,true);assert.equal(governancePermissions(d,staff).governance,false);d.accessLinks.at(-1)!.expires='2026-01-01';assert.equal(governancePermissions(d,staff).dues,false);
+ assert.equal(governancePermissions(d,staff).dues,true);assert.equal(governancePermissions(d,staff).governance,false);
+ assert.throws(()=>applyCommand(d,{type:'dues_note',id:'a',reason:'View-only staff note',date:'2099-01-01'},staff),/recording access/);
+ d.accessLinks.at(-1)!.expires='2026-01-01';assert.equal(governancePermissions(d,staff).dues,false);
 });
 test('an ExCo title or governance flag alone cannot vote; expired terms lose access',()=>{
  const d=fixture();assert.equal(governancePermissions(d,{...exco(5),governance:true}).exco,false);

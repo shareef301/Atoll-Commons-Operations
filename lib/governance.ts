@@ -118,7 +118,7 @@ export function applyGovernanceCommand(d:WorkspaceData,c:any,a:GovernanceActor):
   r.reversalReason=required(c.reason,'Correction reason');r.status='Reversed';record(d,a,r,'Dues allocation reversed','dues');return {message:'Allocation reversed. The original payment and finance transaction are retained.'};
  }
  if(type==='dues_note'){
-  check(p.dues,'Private dues access is required.');const r=find(d.duesAccounts,c.id);r.followUp=required(c.reason,'Private follow-up note');r.reviewDate=validDate(c.date,'review date');
+  check(p.duesWrite||p.exco||p.admin,'ExCo or dues recording access is required to add notes.');const r=find(d.duesAccounts,c.id);r.followUp=required(c.reason,'Private follow-up note');r.reviewDate=validDate(c.date,'review date');
   record(d,a,r,'Private dues follow-up recorded','dues');return {message:'Follow-up recorded for ExCo and authorized dues staff.'};
  }
  if(type==='decision_save'){
