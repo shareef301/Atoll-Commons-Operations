@@ -43,10 +43,10 @@ function actor(email){
 try {
   await mkdir(join(app,'dist'),{recursive:true});
   await cp(join(source,'dist/standalone'),join(app,'dist/standalone'),{recursive:true});
-  for(const path of ['server','scripts','drizzle'])await cp(join(source,path),join(app,path),{recursive:true});
+  for(const path of ['server','scripts','drizzle','lib'])await cp(join(source,path),join(app,path),{recursive:true});
   await cp(join(source,'package.json'),join(app,'package.json'));
   sql=new RecordStore(join(data,'atoll.sqlite'),join(app,'drizzle'));
-  const ownerActor=actor(owner),peer=actor('scoped-lead@example.test');
+  const ownerActor=actor(owner),peer=actor('scoped-lead@example.test'),general=actor('general-member@example.test');
   await start();checks++;
   const health=await fetch(base+'/api/health');assert.equal((await health.json()).status,'ok');checks++;
   const signin=await fetch(base+'/signin');assert.equal(signin.status,200);assert.match(await signin.text(),/Continue with Google/);assert.equal(signin.headers.get('x-frame-options'),'DENY');checks++;
@@ -54,6 +54,23 @@ try {
   const dev=await fetch(base+'/auth/development',{method:'POST',headers:{Origin:origin},redirect:'manual'});assert.equal(dev.status,404);checks++;
   const forged=await fetch(base+'/auth/callback?code=fake&state=fake',{redirect:'manual'});assert.equal(forged.status,303);assert.equal(forged.headers.get('location'),origin+'/signin?error=signin');checks++;
   const flow=await runWorkflow({base,origin,actor:ownerActor,scopedActor:peer});checks+=flow.checks;
+  async function command(payload,who=ownerActor,expected=200){
+    const response=await fetch(base+'/api/workspace',{method:'POST',headers:{Cookie:who.cookie,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({...payload,revision:flow.state.revision,operationId:randomUUID()})});
+    const result=await response.json();assert.equal(response.status,expected,JSON.stringify(result));if(expected===200)flow.state=result;return result;
+  }
+  await command({type:'create',collection:'members',values:{title:'Private general member fixture',email:general.email}});const memberId=flow.state.id;
+  await command({type:'dues_account',memberId,startMonth:'2026-09',opening:50,reason:'Synthetic opening used only in an isolated test',confirm:true});
+  await command({type:'member_access',values:{name:'General member fixture',email:general.email,role:'General member',memberId,governance:true,projects:['ac-01','report1']}});
+  const memberView=await fetch(base+'/api/workspace',{headers:{Cookie:general.cookie}});assert.equal(memberView.status,200);const memberState=await memberView.json();
+  assert.equal(memberState.permissions.memberOnly,true);assert.equal(memberState.user.governance,false);assert.deepEqual(memberState.data.duesAccounts,[]);assert.deepEqual(memberState.data.members,[]);assert.deepEqual(memberState.data.reports,[]);assert.deepEqual(memberState.members,[]);checks++;
+  for(const id of [flow.fileId,flow.exportId])assert.equal((await fetch(base+'/api/files/'+id,{headers:{Cookie:general.cookie}})).status,403);checks++;
+  await command({type:'dues_note',id:flow.state.data.duesAccounts[0].id,reason:'Unauthorized',date:'2099-01-01'},general,400);checks++;
+  assert.equal((await fetch(base+'/api/export/report1',{method:'POST',headers:{Cookie:general.cookie,Origin:origin}})).status,403);checks++;
+  const blockedUpload=new FormData();blockedUpload.set('file',new File(['Private'], 'private.txt',{type:'text/plain'}));blockedUpload.set('scope','dues');
+  assert.equal((await fetch(base+'/api/files',{method:'POST',headers:{Cookie:general.cookie,Origin:origin},body:blockedUpload})).status,403);checks++;
+  const deepLink=await fetch(base+'/open?kind=decisions&id=test-record',{redirect:'manual'});assert.equal(deepLink.status,303);assert.equal(deepLink.headers.get('location'),origin+'/signin');assert.match(deepLink.headers.get('set-cookie'),/HttpOnly/);assert.match(deepLink.headers.get('set-cookie'),/Secure/);
+  assert.equal((await fetch(base+'/open?kind=https://evil.example&id=bad',{redirect:'manual'})).status,404);
+  assert.equal(signin.headers.get('referrer-policy'),'same-origin');checks++;
   const noOrigin=await fetch(base+'/api/workspace',{method:'POST',headers:{Cookie:ownerActor.cookie,'Content-Type':'application/json'},body:'{}'});assert.equal(noOrigin.status,403);checks++;
   const tooLarge=await fetch(base+'/api/workspace',{method:'POST',headers:{Cookie:ownerActor.cookie,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({text:'a'.repeat(100001)})});assert.equal(tooLarge.status,413);checks++;
   const badJson=await fetch(base+'/api/workspace',{method:'POST',headers:{Cookie:ownerActor.cookie,Origin:origin,'Content-Type':'application/json'},body:'broken'});assert.equal(badJson.status,400);checks++;

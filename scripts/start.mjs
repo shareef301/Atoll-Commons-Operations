@@ -8,6 +8,8 @@ try {
   validateDeployment();
   await storageReady();
   await import('../dist/standalone/server.js');
+  const {startMailWorker}=await import('../server/mail-worker.mjs');
+  startMailWorker();
 } catch (error) {
   console.error('Atoll Commons could not start:', error.message);
   process.exit(1);

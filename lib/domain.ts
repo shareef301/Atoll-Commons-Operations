@@ -1,5 +1,6 @@
 import {uid,now,addDays,addMonths,type WorkspaceData,type Entry,type Milestone,type Collection,type History} from './model.ts';
-export type Actor={name:string;email:string;role:string;governance:boolean;projects:string[]};
+import {applyGovernanceCommand} from './governance.ts';
+export type Actor={name:string;email:string;role:string;governance:boolean;projects:string[];mailConfigured?:boolean};
 export function requireValue(condition:unknown,message:string):asserts condition{if(!condition)throw new Error(message)}
 const text=(v:any,max=10000)=>typeof v==='string'?v.trim().slice(0,max):'';
 const required=(v:any,label:string,max=10000)=>{const s=text(v,max);requireValue(s,label+' is required.');return s};
@@ -18,6 +19,8 @@ export function readiness(d:WorkspaceData,report:Entry){const year=Number(report
 function snapshot(d:WorkspaceData,r:Entry){const yr=String(r.year);return {organization:d.organization,report:{id:r.id,title:r.title,year:r.year,version:r.version,narrative:r.narrative,due:r.due,authority:r.authority},approvals:r.approvals,membership:{active:d.members.filter(m=>m.status==='Active').length,joined:d.members.filter(m=>String(m.joined).startsWith(yr)).length},activities:d.activities.filter(x=>String(x.date).startsWith(yr)),transactions:d.transactions.filter(x=>String(x.date).startsWith(yr)),donations:d.donations.filter(x=>String(x.date).startsWith(yr)),assets:d.assets,acceptedResults:d.milestones.filter(m=>m.status==='Accepted'&&m.acceptedAt?.startsWith(yr)).map(m=>({id:m.id,projectId:m.projectId,title:m.title,result:m.result,version:m.version,evidence:m.evidence,fileId:m.fileId,submittedAt:m.submittedAt,acceptedAt:m.acceptedAt})),meetings:d.meetings.filter(m=>m.status==='Finalized'&&String(m.date).startsWith(yr)),noneDeclared:!!r.noneDeclared}}
 export function applyCommand(d:WorkspaceData,c:any,a:Actor):{message:string;id?:string}{
  requireValue(c&&typeof c.type==='string','Choose an action.');
+ requireValue(!['General member','Disabled'].includes(a.role),'This account can only read approved member updates.');
+ const governanceResult=applyGovernanceCommand(d,c,a);if(governanceResult)return governanceResult;
  if(c.type==='attach_evidence'){
   requireValue(compliance(a),'Governance and compliance access is required.');
   const kind=c.collection;requireValue(['organization','members','committee','meetings','obligations','submissions','rules'].includes(kind),'Unsupported document destination.');
@@ -77,6 +80,7 @@ export function applyCommand(d:WorkspaceData,c:any,a:Actor):{message:string;id?:
    Object.assign(r,{joined,applicationDate,email:text(p.email,250),phone:text(p.phone,100),type:text(p.type,100)||'Member',status:'Active',fileIds:p.fileId?[p.fileId]:[]});
   }
   if(kind==='committee'){
+   if(p.memberId){const member=find(d.members,p.memberId);requireValue(member.status==='Active','Choose an active member for the appointment.');r.memberId=member.id;p.person=member.title;}
    const effective=date(p.date,'Effective date');Object.assign(r,{person:required(p.person,'Appointee',250),date:effective,end:date(p.end,'Term end'),eventType:required(p.eventType,'Change type'),status:'Active'});requireValue(r.end>=effective,'Term end must follow appointment.');const rule=d.rules.find(x=>x.id==='r3');const days=p.eventType==='First election'?(rule?.days??30):(rule?.changeDays??(d.mode==='sample'?15:null));d.obligations.push({id:uid(),title:'Committee notification · '+r.title,status:'Action needed',authority:'Registrar',owner:'Compliance secretary',due:days===null?'':addDays(effective,days),...(days===null?{dueLabel:'Confirm notification deadline'}:{}),ruleId:'r3',committeeId:r.id,description:days===null?'Confirm the notification deadline for this change against the applicable official source.':days+' days from the recorded '+p.eventType.toLowerCase()+'. Review the source rule before live filing.',checklist:[{label:'Confirm appointment and contact details',done:false},{label:'Attach resolution',done:false},{label:'Record submission and proof',done:false}]});
   }
   if(kind==='transactions')Object.assign(r,{date:date(p.date,'Transaction date'),type:p.type==='Income'?'Income':'Expense',amount:positive(p.amount,'Amount'),category:required(p.category,'Category',100),projectId:text(p.projectId,100),status:'Needs receipt'});

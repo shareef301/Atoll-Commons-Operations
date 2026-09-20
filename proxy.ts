@@ -17,4 +17,4 @@ export async function proxy(request:NextRequest) {
   response.headers.set('Cache-Control','private, no-store');
   return response;
 }
-export const config={matcher:['/','/signin','/api/workspace','/api/files/:path*','/api/export/:path*','/auth/:path*']};
+export const config={matcher:['/open','/','/signin','/api/workspace','/api/files/:path*','/api/export/:path*','/auth/:path*']};

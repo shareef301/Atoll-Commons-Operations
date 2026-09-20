@@ -1,3 +1,5 @@
+import {validateAccessLink} from '@/lib/governance';
+import {mailConfigured} from '@/server/mail-config.mjs';
 import {membership,workspace,switchWorkspace,assignAccess} from '@/server/records.mjs';
 import {readCommand} from '@/server/http';
 import {session,save,visible,checkOrigin,responseError,AppError,db,fullAccess,fileAccess} from '@/db/store';
@@ -23,19 +25,21 @@ export async function POST(request:Request){try{checkOrigin(request);const s=awa
  }
  if(c.type==='member_access'){
   if(s.access.role!=='System owner')throw new AppError('Only the system owner can manage access.',403);
-  const p=c.values||{};const email=String(p.email||'').trim().toLowerCase();const roles=['System owner','Compliance secretary','Treasurer','Project lead','Project participant','Project sponsor','Continuity deputy','Approver','Auditor','Observer'];
+  const p=c.values||{};const email=String(p.email||'').trim().toLowerCase();const roles=['System owner','Compliance secretary','Treasurer','Project lead','Project participant','Project sponsor','Continuity deputy','Approver','Auditor','Observer','ExCo member','General member','Authorized staff','Disabled'];
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!roles.includes(p.role))throw new AppError('Enter a valid email and role.');
   if(email===s.access.email&&p.role!=='System owner')throw new AppError('You cannot remove your own system owner access.');
   const existing=await membership(email);if(existing&&existing.workspace_id!==s.workspaceId)throw new AppError('This account already belongs to another workspace.');
-  const governance=p.governance===true?1:0;const ref=String(p.authorityRef||'').trim();if(governance&&ref.length<10)throw new AppError('Record the formal governance appointment or delegation reference.');
-  const projects=Array.isArray(p.projects)?p.projects.filter((id:string)=>[...s.data.projects,...s.data.reports].some(x=>x.id===id)):[];
+  const link=validateAccessLink(s.data,p,email);
+  const governance=!['General member','Authorized staff','Disabled'].includes(p.role)&&p.governance===true?1:0;const ref=String(p.authorityRef||'').trim();if(governance&&ref.length<10)throw new AppError('Record the formal governance appointment or delegation reference.');
+  const projects=!['General member','Authorized staff','Disabled','ExCo member'].includes(p.role)&&Array.isArray(p.projects)?p.projects.filter((id:string)=>[...s.data.projects,...s.data.reports].some(x=>x.id===id)):[];
+  s.data.accessLinks=s.data.accessLinks.filter(l=>l.email!==email);s.data.accessLinks.push(link);
   const audit={id:uid(),at:now(),actor:s.user.email,action:'Access assignment recorded',detail:email+' · '+p.role+(governance?' · governance authority: '+ref:'')};s.data.audit.unshift(audit);
   const saved=await assignAccess(s.workspaceId,s.revision,s.data,{email,name:String(p.name||email),role:p.role,projects,governance,authority_ref:ref});
   if(!saved)throw new AppError('Another change was saved first. Refresh and try again.',409);
   return Response.json({...visible(await session()),message:'Access assigned. This person can now sign in with the assigned email; no invitation was sent.'});
  }
  const evidenceId=c.fileId||c.values?.fileId;if(evidenceId){const evidence=s.data.files.find(f=>f.id===evidenceId);if(!evidence||!fileAccess(s,evidence))throw new AppError('Evidence is outside your authorized scope.',403);}
- const actor:Actor={name:s.user.displayName,email:s.user.email,role:s.access.role,governance:!!s.access.governance,projects:JSON.parse(s.access.projects)};
+ const actor:Actor={name:s.user.displayName,email:s.user.email,role:s.access.role,governance:!!s.access.governance,projects:JSON.parse(s.access.projects),mailConfigured:mailConfigured()};
  let result;try{result=applyCommand(s.data,c,actor)}catch(e){throw new AppError(e instanceof Error?e.message:'This action is invalid.')}
  await save(s,c.operationId);return Response.json({...visible(s),...result});
  }catch(e){return responseError(e)}}

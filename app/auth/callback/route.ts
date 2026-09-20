@@ -9,15 +9,17 @@ export async function GET(request:Request) {
   if(process.env.AUTH_MODE==='supabase'){
     const client=await authClient();
     const code=new URL(request.url).searchParams.get('code');
+    let destination='/';
+    try{const raw=request.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith('ops_return_to='))?.slice(14);const path=decodeURIComponent(raw||'');if(/^\/#(decisions|communications)\?id=[a-zA-Z0-9-]{1,80}$/.test(path))destination=path;}catch{}
     let path='/signin?error=signin';
     if(code){
       const {error}=await client.auth.exchangeCodeForSession(code);
       if(!error){
-        if(await supabaseUser())path='/';
+        if(await supabaseUser())path=destination;
         else {await client.auth.signOut({scope:'local'});path='/signin?error=access';}
       }
     }
-    return new Response(null,{status:303,headers:{Location:runtimeConfig().origin+path,'Cache-Control':'no-store'}});
+    return new Response(null,{status:303,headers:{Location:runtimeConfig().origin+path,'Cache-Control':'no-store','Set-Cookie':'ops_return_to=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(runtimeConfig().secure?'; Secure':'')}});
   }
   const headers = new Headers({'Cache-Control':'no-store'});
   headers.append('Set-Cookie',authCookie('','flow',0));
